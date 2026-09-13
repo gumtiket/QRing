@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="QRing" />
+  <title>QRing 웹 푸시 PoC</title>
+</head>
+<body>
+  <h1>QRing 웹 푸시 PoC</h1>
+  <p id="status">서비스 워커 등록 확인 중...</p>
+
+  <button id="subscribe-btn">알림 받기</button>
+  <p id="subscribe-status"></p>
+
+  <button id="send-test-btn">테스트 알림 보내기</button>
+  <p id="send-test-status"></p>
+
+  <hr />
+  <p>※ 실제로는 "알림 상세 화면"이 따로 있어야 하지만, PoC라 여기 버튼으로 대신합니다. (알림 본문을 탭하면 이 화면이 열립니다)</p>
+  <button id="ack-btn">확인했어요</button>
+  <p id="ack-status"></p>
+
+  <script src="/app.js"></script>
+</body>
+</html>
