@@ -2,7 +2,6 @@ import path from "path";
 import express, { Request, Response } from "express";
 import { PORT } from "./config";
 import { channelsRouter } from "./routes/channels";
-import { pushRouter } from "./routes/push";
 import { publicRouter } from "./routes/public";
 
 const app = express();
@@ -19,8 +18,12 @@ app.get("/c/:code", (req: Request, res: Response) => {
   res.sendFile(path.join(__dirname, "../public/subscribe.html"));
 });
 
+// 알림 상세 페이지 (알림 본문을 탭했을 때 서비스 워커가 여는 곳).
+app.get("/n/:notificationId", (req: Request, res: Response) => {
+  res.sendFile(path.join(__dirname, "../public/notification.html"));
+});
+
 app.use("/channels", channelsRouter);
-app.use("/api", pushRouter);
 app.use("/public", publicRouter);
 
 app.listen(PORT, () => {

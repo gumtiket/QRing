@@ -3,7 +3,7 @@ import { eq, and } from "drizzle-orm";
 import QRCode from "qrcode";
 import webpush from "web-push";
 import { db } from "../db/client";
-import { channels, subscriptions } from "../db/schema";
+import { channels, subscriptions, notifications, notificationActions } from "../db/schema";
 import { generateChannelCode } from "../lib/channelCode";
 import { generateAdminToken, hashToken } from "../lib/token";
 import { BASE_URL } from "../config";
@@ -84,12 +84,37 @@ channelsRouter.post(
       .from(subscriptions)
       .where(and(eq(subscriptions.channelId, channel.id), eq(subscriptions.status, "ACTIVE")));
 
-    const payload = JSON.stringify({ title, body });
+    const [notification] = await db
+      .insert(notifications)
+      .values({
+        channelId: channel.id,
+        title,
+        body,
+        status: "DISPATCHING",
+        totalCount: activeSubscriptions.length,
+      })
+      .returning();
+
+    // MVP 범위: 발송할 때마다 "확인했어요" 액션 하나를 자동으로 생성한다.
+    await db.insert(notificationActions).values({
+      notificationId: notification.id,
+      actionKey: "ack",
+      type: "ACK",
+      label: "확인했어요",
+    });
 
     const results = await Promise.allSettled(
-      activeSubscriptions.map((sub) =>
-        webpush.sendNotification(sub.endpointData as webpush.PushSubscription, payload)
-      )
+      activeSubscriptions.map((sub) => {
+        // 구독자마다 다른 payload를 보낸다 — 자기 subscriptionId를 알아야
+        // 나중에 알림을 눌렀을 때 "누가 확인했는지" 서버에 알려줄 수 있다.
+        const payload = JSON.stringify({
+          notificationId: notification.id,
+          subscriptionId: sub.id,
+          title,
+          body,
+        });
+        return webpush.sendNotification(sub.endpointData as webpush.PushSubscription, payload);
+      })
     );
 
     const successCount = results.filter((r) => r.status === "fulfilled").length;
@@ -105,11 +130,19 @@ channelsRouter.post(
       }
     });
 
+    const finalStatus = failCount === 0 ? "DONE" : successCount === 0 ? "FAILED" : "PARTIAL_FAILED";
+
+    await db
+      .update(notifications)
+      .set({ status: finalStatus, successCount, failCount, completedAt: new Date() })
+      .where(eq(notifications.id, notification.id));
+
     console.log(
-      `채널 ${channel.code} 발송 완료: 대상 ${activeSubscriptions.length}, 성공 ${successCount}, 실패 ${failCount}`
+      `채널 ${channel.code} 발송 완료 (${notification.id}): 대상 ${activeSubscriptions.length}, 성공 ${successCount}, 실패 ${failCount}`
     );
 
     res.status(202).json({
+      notificationId: notification.id,
       total: activeSubscriptions.length,
       success: successCount,
       fail: failCount,

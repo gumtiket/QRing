@@ -19,6 +19,9 @@ self.addEventListener("push", (event) => {
     self.registration.showNotification(data.title, {
       body: data.body,
       actions: [{ action: "ack", title: "확인했어요" }],
+      // notificationId/subscriptionId를 여기 담아두면, 나중에 이 알림이
+      // 클릭될 때(초 단위든 몇 시간 뒤든) event.notification.data로 다시 꺼낼 수 있다.
+      data: { notificationId: data.notificationId, subscriptionId: data.subscriptionId },
     })
   );
 });
@@ -28,17 +31,19 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
+  const { notificationId, subscriptionId } = event.notification.data;
+
   if (event.action === "ack") {
     // 버튼 경로: 앱을 열지 않고 그 자리에서 바로 서버에 응답
     event.waitUntil(
-      fetch("/api/ack", {
-        method: "POST",
+      fetch(`/public/subscriptions/${subscriptionId}/responses/${notificationId}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ via: "button" }),
+        body: JSON.stringify({ actionKey: "ack" }),
       })
     );
   } else {
-    // 본문 탭 경로: 앱 화면을 열어서 사용자가 직접 확인 버튼을 누르게 함
-    event.waitUntil(clients.openWindow("/"));
+    // 본문 탭 경로: 알림 상세 화면을 열어서 사용자가 직접 확인 버튼을 누르게 함
+    event.waitUntil(clients.openWindow(`/n/${notificationId}?sub=${subscriptionId}`));
   }
 });
