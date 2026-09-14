@@ -1,8 +1,11 @@
 import { Router, Request, Response } from "express";
+import { eq } from "drizzle-orm";
+import QRCode from "qrcode";
 import { db } from "../db/client";
 import { channels } from "../db/schema";
 import { generateChannelCode } from "../lib/channelCode";
 import { generateAdminToken, hashToken } from "../lib/token";
+import { BASE_URL } from "../config";
 
 export const channelsRouter = Router();
 
@@ -38,6 +41,22 @@ channelsRouter.post("/", async (req: Request, res: Response) => {
   res.status(201).json({
     channelId: channel.id,
     code: channel.code,
-    adminToken,
+    subscribeUrl: `${BASE_URL}/c/${channel.code}`,
+    qrUrl: `${BASE_URL}/channels/${channel.id}/qr`,
+    adminUrl: `${BASE_URL}/admin/${channel.id}?token=${adminToken}`,
   });
+});
+
+channelsRouter.get("/:id/qr", async (req: Request<{ id: string }>, res: Response) => {
+  const [channel] = await db.select().from(channels).where(eq(channels.id, req.params.id));
+
+  if (!channel) {
+    res.status(404).json({ error: "채널을 찾을 수 없습니다." });
+    return;
+  }
+
+  const subscribeUrl = `${BASE_URL}/c/${channel.code}`;
+  const qrPng = await QRCode.toBuffer(subscribeUrl, { type: "png", width: 400 });
+
+  res.type("png").send(qrPng);
 });

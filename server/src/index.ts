@@ -3,6 +3,7 @@ import express, { Request, Response } from "express";
 import { PORT } from "./config";
 import { channelsRouter } from "./routes/channels";
 import { pushRouter } from "./routes/push";
+import { publicRouter } from "./routes/public";
 
 const app = express();
 
@@ -15,6 +16,7 @@ app.get("/health", (req: Request, res: Response) => {
 
 app.use("/channels", channelsRouter);
 app.use("/api", pushRouter);
+app.use("/public", publicRouter);
 
 app.listen(PORT, () => {
   console.log(`QRing 서버가 http://localhost:${PORT} 에서 실행 중입니다.`);
