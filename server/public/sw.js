@@ -1,9 +1,13 @@
 self.addEventListener("install", () => {
   console.log("[sw] 설치됨");
+  // 새 버전이 설치되면, 기존 탭이 안 닫혀도 대기하지 않고 바로 활성화 단계로 넘어간다.
+  self.skipWaiting();
 });
 
-self.addEventListener("activate", () => {
+self.addEventListener("activate", (event) => {
   console.log("[sw] 활성화됨");
+  // 이미 열려있는 페이지들도, 새로고침 없이 지금 이 버전이 즉시 제어하게 만든다.
+  event.waitUntil(clients.claim());
 });
 
 // 서버가 webpush.sendNotification()으로 보낸 푸시가 도착하면 여기가 실행된다.
