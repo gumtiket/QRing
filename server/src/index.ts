@@ -14,6 +14,11 @@ app.get("/health", (req: Request, res: Response) => {
   res.json({ status: "ok" });
 });
 
+// 구독 페이지. 실제 채널 정보는 이 HTML이 로드된 뒤 프론트 JS가 /public API로 따로 받아온다.
+app.get("/c/:code", (req: Request, res: Response) => {
+  res.sendFile(path.join(__dirname, "../public/subscribe.html"));
+});
+
 app.use("/channels", channelsRouter);
 app.use("/api", pushRouter);
 app.use("/public", publicRouter);

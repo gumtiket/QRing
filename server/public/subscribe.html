@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="QRing" />
+  <title>QRing 구독</title>
+</head>
+<body>
+  <h1 id="channel-name">불러오는 중...</h1>
+  <p id="channel-description"></p>
+
+  <div id="subscribe-form" hidden>
+    <label>
+      닉네임 (선택)
+      <input type="text" id="nickname-input" maxlength="30" placeholder="비워두면 참여자 번호로 표시됩니다" />
+    </label>
+    <button id="subscribe-btn">알림 받기</button>
+  </div>
+
+  <p id="status"></p>
+
+  <script src="/subscribe.js"></script>
+</body>
+</html>
