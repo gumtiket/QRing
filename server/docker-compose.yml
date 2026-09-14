@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: qring
+      POSTGRES_PASSWORD: qring_dev_password
+      POSTGRES_DB: qring
+    ports:
+      - "5432:5432"
+    volumes:
+      - qring_pgdata:/var/lib/postgresql/data
+
+volumes:
+  qring_pgdata:
