@@ -2,6 +2,10 @@ import "dotenv/config";
 import path from "path";
 import express, { Request, Response } from "express";
 import webpush from "web-push";
+import { db } from "./db/client";
+import { channels } from "./db/schema";
+import { generateChannelCode } from "./lib/channelCode";
+import { generateAdminToken, hashToken } from "./lib/token";
 
 const PORT = 3000;
 
@@ -30,6 +34,42 @@ app.get("/health", (req: Request, res: Response) => {
 
 app.get("/api/vapid-public-key", (req: Request, res: Response) => {
   res.json({ publicKey: VAPID_PUBLIC_KEY });
+});
+
+app.post("/channels", async (req: Request, res: Response) => {
+  const { name, description, expiresAt } = req.body;
+
+  if (!name || !expiresAt) {
+    res.status(400).json({ error: "name과 expiresAt은 필수입니다." });
+    return;
+  }
+
+  const expiresAtDate = new Date(expiresAt);
+  if (Number.isNaN(expiresAtDate.getTime())) {
+    res.status(400).json({ error: "expiresAt이 올바른 날짜 형식이 아닙니다." });
+    return;
+  }
+
+  const adminToken = generateAdminToken();
+
+  const [channel] = await db
+    .insert(channels)
+    .values({
+      code: generateChannelCode(),
+      name,
+      description,
+      adminTokenHash: hashToken(adminToken),
+      expiresAt: expiresAtDate,
+    })
+    .returning();
+
+  console.log("채널 생성됨:", channel.code, channel.name);
+
+  res.status(201).json({
+    channelId: channel.id,
+    code: channel.code,
+    adminToken,
+  });
 });
 
 app.post("/api/subscribe", (req: Request, res: Response) => {
