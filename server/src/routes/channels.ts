@@ -2,11 +2,13 @@ import { Router, Request, Response } from "express";
 import { eq, and } from "drizzle-orm";
 import QRCode from "qrcode";
 import webpush from "web-push";
+import { CreateTopicCommand, SubscribeCommand } from "@aws-sdk/client-sns";
 import { db } from "../db/client";
 import { channels, subscriptions, notifications, notificationActions } from "../db/schema";
 import { generateChannelCode } from "../lib/channelCode";
 import { generateAdminToken, hashToken } from "../lib/token";
-import { BASE_URL } from "../config";
+import { snsClient } from "../aws/sns";
+import { BASE_URL, WEBPUSH_DISPATCH_QUEUE_ARN } from "../config";
 
 export const channelsRouter = Router();
 
@@ -25,15 +27,34 @@ channelsRouter.post("/", async (req: Request, res: Response) => {
   }
 
   const adminToken = generateAdminToken();
+  const code = generateChannelCode();
+
+  // 채널 하나 = SNS 토픽 하나. 이름 패턴(qring-ch-*)은 SQS 큐 정책이
+  // 이 패턴의 토픽만 발행을 허용하도록 이미 Terraform에서 걸어둔 것과 맞춰야 한다.
+  const { TopicArn } = await snsClient.send(
+    new CreateTopicCommand({ Name: `qring-ch-${code}` })
+  );
+
+  // 이 토픽에 온 메시지가 실제로 워커까지 가려면, 발송 큐가 이 토픽을 구독해야 한다.
+  // RawMessageDelivery: SNS 고유 봉투(Envelope) 없이, 우리가 보낸 JSON 그대로 큐에 들어오게 함.
+  await snsClient.send(
+    new SubscribeCommand({
+      TopicArn,
+      Protocol: "sqs",
+      Endpoint: WEBPUSH_DISPATCH_QUEUE_ARN,
+      Attributes: { RawMessageDelivery: "true" },
+    })
+  );
 
   const [channel] = await db
     .insert(channels)
     .values({
-      code: generateChannelCode(),
+      code,
       name,
       description,
       adminTokenHash: hashToken(adminToken),
       expiresAt: expiresAtDate,
+      snsTopicArn: TopicArn,
     })
     .returning();
 
