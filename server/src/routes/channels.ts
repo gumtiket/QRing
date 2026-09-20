@@ -1,10 +1,9 @@
 import { Router, Request, Response } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import QRCode from "qrcode";
-import webpush from "web-push";
-import { CreateTopicCommand, SubscribeCommand } from "@aws-sdk/client-sns";
+import { CreateTopicCommand, SubscribeCommand, PublishCommand } from "@aws-sdk/client-sns";
 import { db } from "../db/client";
-import { channels, subscriptions, notifications, notificationActions } from "../db/schema";
+import { channels, notifications, notificationActions } from "../db/schema";
 import { generateChannelCode } from "../lib/channelCode";
 import { generateAdminToken, hashToken } from "../lib/token";
 import { snsClient } from "../aws/sns";
@@ -93,6 +92,11 @@ channelsRouter.post(
       return;
     }
 
+    if (!channel.snsTopicArn) {
+      res.status(500).json({ error: "이 채널에는 SNS 토픽이 없습니다." });
+      return;
+    }
+
     const { title, body } = req.body;
 
     if (!title || !body) {
@@ -100,19 +104,13 @@ channelsRouter.post(
       return;
     }
 
-    const activeSubscriptions = await db
-      .select()
-      .from(subscriptions)
-      .where(and(eq(subscriptions.channelId, channel.id), eq(subscriptions.status, "ACTIVE")));
-
     const [notification] = await db
       .insert(notifications)
       .values({
         channelId: channel.id,
         title,
         body,
-        status: "DISPATCHING",
-        totalCount: activeSubscriptions.length,
+        status: "QUEUED",
       })
       .returning();
 
@@ -124,49 +122,30 @@ channelsRouter.post(
       label: "확인했어요",
     });
 
-    const results = await Promise.allSettled(
-      activeSubscriptions.map((sub) => {
-        // 구독자마다 다른 payload를 보낸다 — 자기 subscriptionId를 알아야
-        // 나중에 알림을 눌렀을 때 "누가 확인했는지" 서버에 알려줄 수 있다.
-        const payload = JSON.stringify({
-          notificationId: notification.id,
-          subscriptionId: sub.id,
-          title,
-          body,
-        });
-        return webpush.sendNotification(sub.endpointData as webpush.PushSubscription, payload);
-      })
-    );
+    // 구독자 조회/실제 발송은 여기서 안 한다 — 메시지 하나만 토픽에 발행하고,
+    // "누구에게 보낼지"는 이 메시지를 받은 워커가 그때 DB를 조회해서 정한다.
+    try {
+      await snsClient.send(
+        new PublishCommand({
+          TopicArn: channel.snsTopicArn,
+          Message: JSON.stringify({
+            notificationId: notification.id,
+            channelId: channel.id,
+            title,
+            body,
+          }),
+        })
+      );
+    } catch (err) {
+      await db
+        .update(notifications)
+        .set({ status: "FAILED", completedAt: new Date() })
+        .where(eq(notifications.id, notification.id));
+      throw err;
+    }
 
-    const successCount = results.filter((r) => r.status === "fulfilled").length;
-    const failCount = results.length - successCount;
+    console.log(`채널 ${channel.code} 발행됨 (${notification.id})`);
 
-    results.forEach((r, i) => {
-      if (r.status === "rejected") {
-        console.error(
-          `구독 ${activeSubscriptions[i].id} 발송 실패:`,
-          r.reason?.statusCode,
-          r.reason?.body
-        );
-      }
-    });
-
-    const finalStatus = failCount === 0 ? "DONE" : successCount === 0 ? "FAILED" : "PARTIAL_FAILED";
-
-    await db
-      .update(notifications)
-      .set({ status: finalStatus, successCount, failCount, completedAt: new Date() })
-      .where(eq(notifications.id, notification.id));
-
-    console.log(
-      `채널 ${channel.code} 발송 완료 (${notification.id}): 대상 ${activeSubscriptions.length}, 성공 ${successCount}, 실패 ${failCount}`
-    );
-
-    res.status(202).json({
-      notificationId: notification.id,
-      total: activeSubscriptions.length,
-      success: successCount,
-      fail: failCount,
-    });
+    res.status(202).json({ notificationId: notification.id });
   }
 );
