@@ -94,3 +94,21 @@ export const responses = pgTable(
   },
   (table) => [primaryKey({ columns: [table.notificationId, table.subscriptionId] })]
 );
+
+export const deliveries = pgTable(
+  "deliveries",
+  {
+    notificationId: uuid("notification_id")
+      .notNull()
+      .references(() => notifications.id),
+    subscriptionId: uuid("subscription_id")
+      .notNull()
+      .references(() => subscriptions.id),
+    status: varchar("status", { length: 20 }).notNull(),
+    httpStatus: integer("http_status"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  // 복합 PK가 중복 발송을 막는 유일한 장치다 (SQS가 같은 메시지를 두 번 줄 수 있음).
+  (table) => [primaryKey({ columns: [table.notificationId, table.subscriptionId] })]
+);

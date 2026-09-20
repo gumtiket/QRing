@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "worker": "tsx watch src/worker/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "db:generate": "drizzle-kit generate",
@@ -23,6 +24,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-sns": "^3.1136.0",
+    "@aws-sdk/client-sqs": "^3.1136.0",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",

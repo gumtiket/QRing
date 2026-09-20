@@ -13,6 +13,7 @@ export const PORT = Number(process.env.PORT ?? 3000);
 export const BASE_URL = process.env.BASE_URL ?? `http://localhost:${PORT}`;
 export const AWS_REGION = process.env.AWS_REGION ?? "ap-northeast-2";
 export const WEBPUSH_DISPATCH_QUEUE_ARN = requireEnv("WEBPUSH_DISPATCH_QUEUE_ARN");
+export const WEBPUSH_DISPATCH_QUEUE_URL = requireEnv("WEBPUSH_DISPATCH_QUEUE_URL");
 export const VAPID_PUBLIC_KEY = requireEnv("VAPID_PUBLIC_KEY");
 
 const VAPID_PRIVATE_KEY = requireEnv("VAPID_PRIVATE_KEY");
