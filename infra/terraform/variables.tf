@@ -9,3 +9,9 @@ variable "aws_region" {
   type        = string
   default     = "ap-northeast-2"
 }
+
+variable "db_master_username" {
+  description = "RDS 마스터 사용자 이름"
+  type        = string
+  default     = "qring"
+}
