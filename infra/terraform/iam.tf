@@ -43,6 +43,20 @@ data "aws_iam_policy_document" "role_boundary" {
     resources = [aws_db_instance.main.master_user_secret[0].secret_arn]
   }
 
+  # 부팅할 때 배포 아티팩트를 받아가는 용도.
+  statement {
+    sid    = "DeployArtifacts"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:ListBucket",
+    ]
+    resources = [
+      aws_s3_bucket.deploy_artifacts.arn,
+      "${aws_s3_bucket.deploy_artifacts.arn}/*",
+    ]
+  }
+
   statement {
     sid    = "SsmSessionManager"
     effect = "Allow"
@@ -131,6 +145,19 @@ data "aws_iam_policy_document" "web_permissions" {
     actions   = ["secretsmanager:GetSecretValue"]
     resources = [aws_db_instance.main.master_user_secret[0].secret_arn]
   }
+
+  statement {
+    sid    = "DeployArtifacts"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:ListBucket",
+    ]
+    resources = [
+      aws_s3_bucket.deploy_artifacts.arn,
+      "${aws_s3_bucket.deploy_artifacts.arn}/*",
+    ]
+  }
 }
 
 resource "aws_iam_role_policy" "web" {
@@ -184,6 +211,19 @@ data "aws_iam_policy_document" "worker_permissions" {
     effect    = "Allow"
     actions   = ["secretsmanager:GetSecretValue"]
     resources = [aws_db_instance.main.master_user_secret[0].secret_arn]
+  }
+
+  statement {
+    sid    = "DeployArtifacts"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:ListBucket",
+    ]
+    resources = [
+      aws_s3_bucket.deploy_artifacts.arn,
+      "${aws_s3_bucket.deploy_artifacts.arn}/*",
+    ]
   }
 }
 
