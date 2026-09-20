@@ -130,3 +130,20 @@ publicRouter.put(
     res.json({ ok: true });
   }
 );
+
+publicRouter.delete("/subscriptions/:id", async (req: Request<{ id: string }>, res: Response) => {
+  const [subscription] = await db
+    .update(subscriptions)
+    .set({ status: "UNSUBSCRIBED", updatedAt: new Date() })
+    .where(eq(subscriptions.id, req.params.id))
+    .returning();
+
+  if (!subscription) {
+    res.status(404).json({ error: "구독을 찾을 수 없습니다." });
+    return;
+  }
+
+  console.log(`구독 해지됨: ${subscription.id}`);
+
+  res.json({ ok: true });
+});

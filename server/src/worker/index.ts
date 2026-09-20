@@ -3,6 +3,7 @@ import { ReceiveMessageCommand, DeleteMessageCommand } from "@aws-sdk/client-sqs
 import { sqsClient } from "../aws/sqs";
 import { WEBPUSH_DISPATCH_QUEUE_URL } from "../config";
 import { processDispatch, DispatchMessage } from "./processor";
+import { runJanitor } from "./janitor";
 
 let running = true;
 
@@ -50,13 +51,23 @@ async function pollOnce() {
   }
 }
 
+const JANITOR_INTERVAL_MS = 60 * 1000; // 1분마다
+
 async function main() {
   console.log("[worker] 시작. 큐 폴링 중...");
+
+  // SQS 폴링(아래 while 루프)과 별개로, 1분마다 만료 정리도 같이 돈다.
+  // 둘 다 await로 이벤트 루프에 제어권을 계속 돌려주기 때문에, 한 프로세스 안에서
+  // 서로를 막지 않고 동시에 진행된다.
+  const janitorTimer = setInterval(() => {
+    runJanitor().catch((err) => console.error("[janitor] 실행 중 에러:", err));
+  }, JANITOR_INTERVAL_MS);
 
   while (running) {
     await pollOnce();
   }
 
+  clearInterval(janitorTimer);
   console.log("[worker] 종료.");
 }
 

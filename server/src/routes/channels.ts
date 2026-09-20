@@ -7,11 +7,13 @@ import { channels, notifications, notificationActions, deliveries, subscriptions
 import { generateChannelCode } from "../lib/channelCode";
 import { generateAdminToken, hashToken } from "../lib/token";
 import { snsClient } from "../aws/sns";
+import { requireAdminAuth } from "../middleware/adminAuth";
+import { createChannelLimiter, sendNotificationLimiter } from "../middleware/rateLimit";
 import { BASE_URL, WEBPUSH_DISPATCH_QUEUE_ARN } from "../config";
 
 export const channelsRouter = Router();
 
-channelsRouter.post("/", async (req: Request, res: Response) => {
+channelsRouter.post("/", createChannelLimiter, async (req: Request, res: Response) => {
   const { name, description, expiresAt } = req.body;
 
   if (!name || !expiresAt) {
@@ -84,6 +86,8 @@ channelsRouter.get("/:id/qr", async (req: Request<{ id: string }>, res: Response
 
 channelsRouter.post(
   "/:id/notifications",
+  sendNotificationLimiter,
+  requireAdminAuth,
   async (req: Request<{ id: string }>, res: Response) => {
     const [channel] = await db.select().from(channels).where(eq(channels.id, req.params.id));
 
@@ -151,6 +155,7 @@ channelsRouter.post(
 
 channelsRouter.get(
   "/:id/notifications/:nid/responses",
+  requireAdminAuth,
   async (req: Request<{ id: string; nid: string }>, res: Response) => {
     const [channel] = await db.select().from(channels).where(eq(channels.id, req.params.id));
 
@@ -209,5 +214,21 @@ channelsRouter.get(
         nickname: r.nickname,
       })),
     });
+  }
+);
+
+channelsRouter.post(
+  "/:id/close",
+  requireAdminAuth,
+  async (req: Request<{ id: string }>, res: Response) => {
+    const [channel] = await db
+      .update(channels)
+      .set({ status: "CLOSED", closedAt: new Date() })
+      .where(eq(channels.id, req.params.id))
+      .returning();
+
+    console.log(`채널 종료됨: ${channel.code}`);
+
+    res.json({ channelId: channel.id, status: channel.status, closedAt: channel.closedAt });
   }
 );
