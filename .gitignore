@@ -16,6 +16,9 @@ crash.*.log
 *.tfvars
 *.tfvars.json
 
+# backend 설정 파일 (-backend-config로 넘기는 것, 계정별로 다른 값이라 커밋 안 함)
+backend.hcl
+
 # Ignore override files as they are usually used to override resources locally and so
 # are not checked in
 override.tf
