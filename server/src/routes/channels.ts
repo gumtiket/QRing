@@ -1,9 +1,9 @@
 import { Router, Request, Response } from "express";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import QRCode from "qrcode";
 import { CreateTopicCommand, SubscribeCommand, PublishCommand } from "@aws-sdk/client-sns";
 import { db } from "../db/client";
-import { channels, notifications, notificationActions } from "../db/schema";
+import { channels, notifications, notificationActions, deliveries, subscriptions, responses } from "../db/schema";
 import { generateChannelCode } from "../lib/channelCode";
 import { generateAdminToken, hashToken } from "../lib/token";
 import { snsClient } from "../aws/sns";
@@ -114,7 +114,7 @@ channelsRouter.post(
       })
       .returning();
 
-    // MVP 범위: 발송할 때마다 "확인했어요" 액션 하나를 자동으로 생성한다.
+    // 발송할 때마다 확인했어요 액션 하나를 자동으로 생성
     await db.insert(notificationActions).values({
       notificationId: notification.id,
       actionKey: "ack",
@@ -122,8 +122,7 @@ channelsRouter.post(
       label: "확인했어요",
     });
 
-    // 구독자 조회/실제 발송은 여기서 안 한다 — 메시지 하나만 토픽에 발행하고,
-    // "누구에게 보낼지"는 이 메시지를 받은 워커가 그때 DB를 조회해서 정한다.
+    // 메시지를 토픽에 발행
     try {
       await snsClient.send(
         new PublishCommand({
@@ -147,5 +146,68 @@ channelsRouter.post(
     console.log(`채널 ${channel.code} 발행됨 (${notification.id})`);
 
     res.status(202).json({ notificationId: notification.id });
+  }
+);
+
+channelsRouter.get(
+  "/:id/notifications/:nid/responses",
+  async (req: Request<{ id: string; nid: string }>, res: Response) => {
+    const [channel] = await db.select().from(channels).where(eq(channels.id, req.params.id));
+
+    if (!channel) {
+      res.status(404).json({ error: "채널을 찾을 수 없습니다." });
+      return;
+    }
+
+    const [notification] = await db
+      .select()
+      .from(notifications)
+      .where(and(eq(notifications.id, req.params.nid), eq(notifications.channelId, channel.id)));
+
+    if (!notification) {
+      res.status(404).json({ error: "알림을 찾을 수 없습니다." });
+      return;
+    }
+
+    // 실제로 발송에 성공한(SENT) 구독자만 "대상 명단"으로 본다 — 발송 자체가
+    // 실패한 사람을 "미확인자"에 넣으면, 못 받은 사람과 안 읽은 사람이 섞여버린다.
+    const rows = await db
+      .select({
+        subscriptionId: subscriptions.id,
+        displayNo: subscriptions.displayNo,
+        nickname: subscriptions.nickname,
+        respondedAt: responses.respondedAt,
+      })
+      .from(deliveries)
+      .innerJoin(subscriptions, eq(deliveries.subscriptionId, subscriptions.id))
+      .leftJoin(
+        responses,
+        and(
+          eq(responses.notificationId, deliveries.notificationId),
+          eq(responses.subscriptionId, deliveries.subscriptionId)
+        )
+      )
+      .where(and(eq(deliveries.notificationId, notification.id), eq(deliveries.status, "SENT")));
+
+    const confirmed = rows.filter((r) => r.respondedAt !== null);
+    const unconfirmed = rows.filter((r) => r.respondedAt === null);
+
+    res.json({
+      notificationId: notification.id,
+      title: notification.title,
+      totalSent: rows.length,
+      confirmedCount: confirmed.length,
+      confirmed: confirmed.map((r) => ({
+        subscriptionId: r.subscriptionId,
+        displayNo: r.displayNo,
+        nickname: r.nickname,
+        respondedAt: r.respondedAt,
+      })),
+      unconfirmed: unconfirmed.map((r) => ({
+        subscriptionId: r.subscriptionId,
+        displayNo: r.displayNo,
+        nickname: r.nickname,
+      })),
+    });
   }
 );
