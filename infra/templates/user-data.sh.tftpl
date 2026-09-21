@@ -49,10 +49,31 @@ ENVEOF
 chmod 600 "$INSTALL_DIR/.env"
 chown ec2-user:ec2-user "$INSTALL_DIR/.env"
 
+# 앱보다 먼저 스키마를 맞춘다. 웹 2대 + 워커 1대가 동시에 부팅해도 migrate.js가 자문 락으로
+# 직렬화하므로, 셋 다 이 유닛을 돌려도 안전하다.
+# RemainAfterExit=yes라야 끝난 뒤에도 active로 남아 아래 Requires=가 만족된다.
+cat > "/etc/systemd/system/qring-migrate.service" <<MIGRATEEOF
+[Unit]
+Description=QRing DB migration
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=$INSTALL_DIR
+EnvironmentFile=$INSTALL_DIR/.env
+ExecStart=/usr/bin/node dist/db/migrate.js
+User=ec2-user
+MIGRATEEOF
+
+# Requires= 라서 마이그레이션이 실패하면 앱은 아예 뜨지 않는다.
+# 깨진 스키마 위에서 도는 것보다 안 뜨는 게 낫다.
 cat > "/etc/systemd/system/qring-${role}.service" <<UNITEOF
 [Unit]
 Description=QRing ${role}
-After=network.target
+After=network.target qring-migrate.service
+Requires=qring-migrate.service
 
 [Service]
 Type=simple
