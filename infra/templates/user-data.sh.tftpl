@@ -20,6 +20,11 @@ aws s3 cp "s3://${deploy_bucket}/latest.zip" ./app.zip --region "${aws_region}"
 unzip -o -q app.zip
 rm -f app.zip
 
+# RDS 서버 인증서를 검증할 CA 번들. RDS는 자체 CA로 서명한 인증서를 쓰기 때문에 OS 기본 신뢰
+# 저장소로는 검증이 안 되고, 이 파일을 받아서 앱에 알려줘야 한다(DATABASE_SSL_CA).
+curl -fsSL -o "$INSTALL_DIR/rds-ca.pem" \
+  "https://truststore.pki.rds.amazonaws.com/${aws_region}/${aws_region}-bundle.pem"
+
 # RDS 마스터 암호(Secrets Manager) 조립
 DB_SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "${rds_secret_arn}" --region "${aws_region}" --query SecretString --output text)
 DB_PASSWORD=$(echo "$DB_SECRET_JSON" | jq -r .password)
@@ -34,6 +39,7 @@ PORT=${port}
 BASE_URL=${base_url}
 AWS_REGION=${aws_region}
 DATABASE_URL=postgresql://${db_username}:$DB_PASSWORD@${db_host}:${db_port}/${db_name}
+DATABASE_SSL_CA=$INSTALL_DIR/rds-ca.pem
 WEBPUSH_DISPATCH_QUEUE_ARN=${webpush_queue_arn}
 WEBPUSH_DISPATCH_QUEUE_URL=${webpush_queue_url}
 VAPID_PUBLIC_KEY=$VAPID_PUBLIC_KEY
