@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="QRing" />
+  <title>QRing 채널 관리</title>
+</head>
+<body>
+  <h1 id="channel-name">불러오는 중...</h1>
+  <p id="channel-meta"></p>
+  <p id="load-error" hidden></p>
+
+  <section id="admin-panel" hidden>
+    <h2>알림 보내기</h2>
+    <form id="notify-form">
+      <label>
+        제목 (필수)
+        <input type="text" id="title-input" maxlength="100" required />
+      </label>
+      <label>
+        내용 (필수)
+        <textarea id="body-input" maxlength="500" required></textarea>
+      </label>
+      <button id="notify-btn" type="submit">보내기</button>
+    </form>
+    <p id="notify-status"></p>
+
+    <h2>채널 종료</h2>
+    <p>종료하면 참여자들의 알림 수신도 중단됩니다. 되돌릴 수 없습니다.</p>
+    <button id="close-btn" type="button">채널 종료</button>
+    <p id="close-status"></p>
+  </section>
+
+  <script src="/admin.js"></script>
+</body>
+</html>

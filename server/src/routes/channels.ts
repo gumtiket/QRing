@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, count } from "drizzle-orm";
 import QRCode from "qrcode";
 import { CreateTopicCommand, SubscribeCommand, PublishCommand } from "@aws-sdk/client-sns";
 import { db } from "../db/client";
@@ -71,6 +71,36 @@ channelsRouter.post("/", createChannelLimiter, async (req: Request, res: Respons
     adminUrl: `${BASE_URL}/admin/${channel.id}#token=${adminToken}`,
   });
 });
+
+// 운영자 관리 화면이 채널명/상태/구독자 수를 보여주려고 쓴다. adminToken이 있어야만
+// 조회 가능 — 채널 id(UUID)만으로는 아무것도 못 본다.
+channelsRouter.get(
+  "/:id",
+  requireAdminAuth,
+  async (req: Request<{ id: string }>, res: Response) => {
+    const [channel] = await db.select().from(channels).where(eq(channels.id, req.params.id));
+
+    if (!channel) {
+      res.status(404).json({ error: "채널을 찾을 수 없습니다." });
+      return;
+    }
+
+    const [{ value: subscriberCount }] = await db
+      .select({ value: count() })
+      .from(subscriptions)
+      .where(and(eq(subscriptions.channelId, channel.id), eq(subscriptions.status, "ACTIVE")));
+
+    res.json({
+      channelId: channel.id,
+      code: channel.code,
+      name: channel.name,
+      description: channel.description,
+      status: channel.status,
+      expiresAt: channel.expiresAt,
+      subscriberCount,
+    });
+  }
+);
 
 channelsRouter.get("/:id/qr", async (req: Request<{ id: string }>, res: Response) => {
   const [channel] = await db.select().from(channels).where(eq(channels.id, req.params.id));

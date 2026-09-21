@@ -28,6 +28,12 @@ app.get("/n/:notificationId", (req: Request, res: Response) => {
   res.sendFile(path.join(__dirname, "../public/notification.html"));
 });
 
+// 운영자 관리 페이지. 토큰은 URL 프래그먼트(#token=)로 오므로 서버는 아예 못 보고,
+// 이 HTML이 로드된 뒤 프론트 JS가 location.hash에서 읽어 API 호출에 쓴다.
+app.get("/admin/:id", (req: Request, res: Response) => {
+  res.sendFile(path.join(__dirname, "../public/admin.html"));
+});
+
 app.use("/channels", channelsRouter);
 app.use("/public", publicRouter);
 
