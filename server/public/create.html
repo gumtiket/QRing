@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="QRing" />
+  <title>QRing 채널 만들기</title>
+</head>
+<body>
+  <p><a href="/">← 처음으로</a></p>
+  <h1>채널 만들기</h1>
+
+  <form id="create-form">
+    <label>
+      채널 이름 (필수)
+      <input type="text" id="name-input" maxlength="50" required />
+    </label>
+    <label>
+      설명 (선택)
+      <textarea id="description-input" maxlength="200"></textarea>
+    </label>
+    <label>
+      종료 시각 (필수)
+      <input type="datetime-local" id="expires-input" required />
+    </label>
+    <button id="create-btn" type="submit">만들기</button>
+  </form>
+
+  <p id="status"></p>
+
+  <section id="result" hidden>
+    <h2 id="result-name">채널이 만들어졌습니다</h2>
+
+    <div>
+      <h3>참여자용 QR — 이걸 나눠주세요</h3>
+      <img id="qr-img" width="240" height="240" alt="구독 QR 코드" />
+      <p>
+        QR을 못 찍는 사람은 이 코드를 입력하면 됩니다: <strong id="channel-code"></strong>
+      </p>
+    </div>
+
+    <div>
+      <h3>관리 링크 — 지금 저장하세요</h3>
+      <p>
+        <strong>이 링크는 다시 보여드리지 않습니다.</strong>
+        이 링크가 있어야 이 채널로 알림을 보낼 수 있습니다. 잃어버리면 채널을 되찾을 방법이 없습니다.
+      </p>
+      <p><a id="admin-link" href="#" target="_blank" rel="noopener"></a></p>
+      <button id="copy-admin-btn" type="button">관리 링크 복사</button>
+      <span id="copy-status"></span>
+    </div>
+  </section>
+
+  <script src="/create.js"></script>
+</body>
+</html>
