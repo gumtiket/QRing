@@ -27,7 +27,12 @@ curl -fsSL -o "$INSTALL_DIR/rds-ca.pem" \
 
 # RDS 마스터 암호(Secrets Manager) 조립
 DB_SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "${rds_secret_arn}" --region "${aws_region}" --query SecretString --output text)
-DB_PASSWORD=$(echo "$DB_SECRET_JSON" | jq -r .password)
+
+# 암호를 퍼센트 인코딩해서 URL에 넣는다. systemd의 EnvironmentFile 파서는 값 안의 #를 주석
+# 시작으로 보고 그 뒤를 잘라내는데, RDS가 생성한 암호에 #가 섞여서 DATABASE_URL이 잘리고
+# 호스트를 못 찾는 사고가 실제로 났다. 인코딩하면 #·공백·"·/·@가 전부 %XX가 되어 안전하고,
+# pg(pg-connection-string)가 URL에서 알아서 되돌려 읽는다.
+DB_PASSWORD=$(echo "$DB_SECRET_JSON" | jq -r '.password | @uri')
 
 # VAPID 키(SSM)
 VAPID_PUBLIC_KEY=$(aws ssm get-parameter --name "/qring/vapid-public-key" --region "${aws_region}" --query Parameter.Value --output text)
