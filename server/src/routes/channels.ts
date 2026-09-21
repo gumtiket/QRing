@@ -66,7 +66,9 @@ channelsRouter.post("/", createChannelLimiter, async (req: Request, res: Respons
     code: channel.code,
     subscribeUrl: `${BASE_URL}/c/${channel.code}`,
     qrUrl: `${BASE_URL}/channels/${channel.id}/qr`,
-    adminUrl: `${BASE_URL}/admin/${channel.id}?token=${adminToken}`,
+    // 프래그먼트(#)로 넘긴다. 쿼리(?token=)와 달리 서버 액세스 로그와 리퍼러 헤더로
+    // 나가지 않는다 — 브라우저가 서버에 전송하지 않고 URL 안에만 남겨둔다.
+    adminUrl: `${BASE_URL}/admin/${channel.id}#token=${adminToken}`,
   });
 });
 
