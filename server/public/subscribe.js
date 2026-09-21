@@ -5,6 +5,8 @@ const channelDescriptionEl = document.getElementById("channel-description");
 const formEl = document.getElementById("subscribe-form");
 const nicknameInput = document.getElementById("nickname-input");
 const subscribeBtn = document.getElementById("subscribe-btn");
+const subscribedPanelEl = document.getElementById("subscribed-panel");
+const unsubscribeBtn = document.getElementById("unsubscribe-btn");
 const statusEl = document.getElementById("status");
 
 function detectClientEnv() {
@@ -35,6 +37,30 @@ function getDeviceKey() {
   return deviceKey;
 }
 
+// 채널당 하나. deviceKey와 마찬가지로 이 브라우저에만 남는 값이고, 값 자체(구독 id)에
+// 특별한 권한 정보는 없다 — 추측 불가능한 UUID라는 것만으로 남의 구독을 못 건드리는
+// 구조(해지 API 자체가 그렇게 설계돼 있음)라, 여기 저장해도 새로 늘어나는 위험은 없다.
+function getSubscriptionKey() {
+  return `qring_subscription_id_${code}`;
+}
+
+function saveSubscriptionId(id) {
+  localStorage.setItem(getSubscriptionKey(), id);
+}
+
+function getSavedSubscriptionId() {
+  return localStorage.getItem(getSubscriptionKey());
+}
+
+function clearSavedSubscriptionId() {
+  localStorage.removeItem(getSubscriptionKey());
+}
+
+function showSubscribedPanel() {
+  formEl.hidden = true;
+  subscribedPanelEl.hidden = false;
+}
+
 function urlBase64ToUint8Array(base64String) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -60,7 +86,12 @@ async function loadChannel() {
 
   channelNameEl.textContent = channel.name;
   channelDescriptionEl.textContent = channel.description ?? "";
-  formEl.hidden = false;
+
+  if (getSavedSubscriptionId()) {
+    showSubscribedPanel();
+  } else {
+    formEl.hidden = false;
+  }
 }
 
 async function registerServiceWorker() {
@@ -104,7 +135,53 @@ async function subscribeToPush() {
   }
 
   const result = await res.json();
+  saveSubscriptionId(result.subscriptionId);
+  showSubscribedPanel();
   statusEl.textContent = `구독 완료! 참여자 #${result.displayNo}`;
+}
+
+async function unsubscribe() {
+  const subscriptionId = getSavedSubscriptionId();
+  if (!subscriptionId) {
+    return;
+  }
+
+  unsubscribeBtn.disabled = true;
+
+  try {
+    const res = await fetch(`/public/subscriptions/${subscriptionId}`, { method: "DELETE" });
+
+    if (!res.ok) {
+      statusEl.textContent = `구독 취소 실패 (HTTP ${res.status})`;
+      return;
+    }
+
+    clearSavedSubscriptionId();
+
+    // 서버 쪽은 이미 지워졌으니 화면부터 바로 갱신한다. 아래 브라우저 푸시 구독
+    // 해지는 부가 정리일 뿐이라, 이게 안 끝났다고 사용자를 기다리게 하지 않는다.
+    subscribedPanelEl.hidden = true;
+    formEl.hidden = false;
+    statusEl.textContent = "구독을 취소했습니다.";
+
+    // 여기서 지우지 않으면, 이 브라우저는 여전히 브라우저사 푸시 서비스에 등록된
+    // 채로 남는다. getRegistration()을 쓴다 — .ready는 "이 페이지를 제어하는 SW가
+    // 뜰 때까지" 기다리는 API라, SW 등록이 어떤 이유로든 실패하면 영원히 안 끝난다.
+    if ("serviceWorker" in navigator) {
+      try {
+        const registration = await navigator.serviceWorker.getRegistration();
+        const pushSubscription = await registration?.pushManager.getSubscription();
+        await pushSubscription?.unsubscribe();
+      } catch (err) {
+        console.error("브라우저 푸시 구독 해지 실패 (서버 쪽은 이미 취소됨):", err);
+      }
+    }
+  } catch (err) {
+    console.error("구독 취소 실패:", err);
+    statusEl.textContent = "구독 취소 실패 (네트워크 오류)";
+  } finally {
+    unsubscribeBtn.disabled = false;
+  }
 }
 
 subscribeBtn.addEventListener("click", () => {
@@ -113,6 +190,8 @@ subscribeBtn.addEventListener("click", () => {
     statusEl.textContent = "구독 실패 (콘솔 확인)";
   });
 });
+
+unsubscribeBtn.addEventListener("click", unsubscribe);
 
 loadChannel();
 registerServiceWorker();
