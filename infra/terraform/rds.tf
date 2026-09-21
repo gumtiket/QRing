@@ -10,8 +10,11 @@ resource "aws_db_subnet_group" "main" {
 }
 
 resource "aws_db_instance" "main" {
-  identifier     = "qring-db"
-  engine         = "postgres"
+  identifier = "qring-db"
+  engine     = "postgres"
+  # 고정하지 않으면 생성 시점의 기본 최신 메이저가 잡혀서 재현이 안 된다.
+  # 로컬 Docker도 postgres:16이라 메이저를 맞춰둔다.
+  engine_version = "16"
   instance_class = "db.t3.micro"
 
   allocated_storage = 20
