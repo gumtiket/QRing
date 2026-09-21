@@ -3,6 +3,9 @@
 resource "aws_s3_bucket" "deploy_artifacts" {
   bucket = "qring-deploy-artifacts-${data.aws_caller_identity.current.account_id}"
 
+  # destroy 편하게 하려고 켜둠.
+  force_destroy = true
+
   tags = {
     Name = "qring-deploy-artifacts"
   }

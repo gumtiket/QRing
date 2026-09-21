@@ -1,0 +1,66 @@
+#!/bin/bash
+# 코드 받기 → 시크릿 조립 → systemd 서비스 등록/시작.
+set -euo pipefail
+
+INSTALL_DIR="/opt/qring"
+
+dnf install -y nodejs unzip jq
+
+# SSM 세션 관리자 접속용. AL2023 기본 저장소 버전이 오래돼 세션 채널이 안 붙는 문제가
+# 있어서, AWS가 배포하는 최신 빌드를 직접 설치한다.
+dnf remove -y amazon-ssm-agent || true
+dnf install -y "https://s3.${aws_region}.amazonaws.com/amazon-ssm-${aws_region}/latest/linux_amd64/amazon-ssm-agent.rpm"
+systemctl enable --now amazon-ssm-agent
+
+mkdir -p "$INSTALL_DIR"
+cd "$INSTALL_DIR"
+
+# 배포 아티팩트 받기 (infra/scripts/deploy.sh가 올려둔 최신본)
+aws s3 cp "s3://${deploy_bucket}/latest.zip" ./app.zip --region "${aws_region}"
+unzip -o -q app.zip
+rm -f app.zip
+
+# RDS 마스터 암호(Secrets Manager) 조립
+DB_SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "${rds_secret_arn}" --region "${aws_region}" --query SecretString --output text)
+DB_PASSWORD=$(echo "$DB_SECRET_JSON" | jq -r .password)
+
+# VAPID 키(SSM)
+VAPID_PUBLIC_KEY=$(aws ssm get-parameter --name "/qring/vapid-public-key" --region "${aws_region}" --query Parameter.Value --output text)
+VAPID_PRIVATE_KEY=$(aws ssm get-parameter --name "/qring/vapid-private-key" --with-decryption --region "${aws_region}" --query Parameter.Value --output text)
+VAPID_SUBJECT=$(aws ssm get-parameter --name "/qring/vapid-subject" --region "${aws_region}" --query Parameter.Value --output text)
+
+cat > "$INSTALL_DIR/.env" <<ENVEOF
+PORT=${port}
+BASE_URL=${base_url}
+AWS_REGION=${aws_region}
+DATABASE_URL=postgresql://${db_username}:$DB_PASSWORD@${db_host}:${db_port}/${db_name}
+WEBPUSH_DISPATCH_QUEUE_ARN=${webpush_queue_arn}
+WEBPUSH_DISPATCH_QUEUE_URL=${webpush_queue_url}
+VAPID_PUBLIC_KEY=$VAPID_PUBLIC_KEY
+VAPID_PRIVATE_KEY=$VAPID_PRIVATE_KEY
+VAPID_SUBJECT=$VAPID_SUBJECT
+ENVEOF
+chmod 600 "$INSTALL_DIR/.env"
+chown ec2-user:ec2-user "$INSTALL_DIR/.env"
+
+cat > "/etc/systemd/system/qring-${role}.service" <<UNITEOF
+[Unit]
+Description=QRing ${role}
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=$INSTALL_DIR
+EnvironmentFile=$INSTALL_DIR/.env
+ExecStart=/usr/bin/node ${entry_point}
+Restart=always
+RestartSec=5
+User=ec2-user
+
+[Install]
+WantedBy=multi-user.target
+UNITEOF
+
+systemctl daemon-reload
+systemctl enable "qring-${role}"
+systemctl start "qring-${role}"

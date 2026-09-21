@@ -57,6 +57,14 @@ data "aws_iam_policy_document" "role_boundary" {
     ]
   }
 
+  # SSM SecureString(VAPID 개인키 등) 복호화용. SSM 기본 관리형 키만.
+  statement {
+    sid       = "SsmDecrypt"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt"]
+    resources = ["arn:aws:kms:${var.aws_region}:${data.aws_caller_identity.current.account_id}:alias/aws/ssm"]
+  }
+
   statement {
     sid    = "SsmSessionManager"
     effect = "Allow"
@@ -158,6 +166,13 @@ data "aws_iam_policy_document" "web_permissions" {
       "${aws_s3_bucket.deploy_artifacts.arn}/*",
     ]
   }
+
+  statement {
+    sid       = "SsmDecrypt"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt"]
+    resources = ["arn:aws:kms:${var.aws_region}:${data.aws_caller_identity.current.account_id}:alias/aws/ssm"]
+  }
 }
 
 resource "aws_iam_role_policy" "web" {
@@ -224,6 +239,13 @@ data "aws_iam_policy_document" "worker_permissions" {
       aws_s3_bucket.deploy_artifacts.arn,
       "${aws_s3_bucket.deploy_artifacts.arn}/*",
     ]
+  }
+
+  statement {
+    sid       = "SsmDecrypt"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt"]
+    resources = ["arn:aws:kms:${var.aws_region}:${data.aws_caller_identity.current.account_id}:alias/aws/ssm"]
   }
 }
 
