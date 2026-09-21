@@ -200,6 +200,14 @@ resource "aws_iam_role" "worker" {
 }
 
 data "aws_iam_policy_document" "worker_permissions" {
+  # janitor가 종료된 채널을 정리할 때 토픽을 지운다. 만드는 건 API 서버 쪽이라 DeleteTopic만 있으면 된다.
+  statement {
+    sid       = "Sns"
+    effect    = "Allow"
+    actions   = ["sns:DeleteTopic"]
+    resources = ["arn:aws:sns:${var.aws_region}:${data.aws_caller_identity.current.account_id}:qring-ch-*"]
+  }
+
   statement {
     sid    = "Sqs"
     effect = "Allow"
