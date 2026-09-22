@@ -79,6 +79,17 @@ SNS 발행은 성공하는데 SQS에 메시지가 도착하지 않는 현상이 
 
 ### 로컬
 
+**시작 전에 `.env`를 먼저 채워야 합니다.** 서버는 기동 시점에 아래 값이 하나라도 비어 있으면 그대로 종료됩니다.
+
+| 값 | 명령 |
+| --- | --- |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | `npx web-push generate-vapid-keys` |
+| `VAPID_SUBJECT` | `mailto:` 형식의 연락처 |
+| `WEBPUSH_DISPATCH_QUEUE_ARN`, `WEBPUSH_DISPATCH_QUEUE_URL` | `terraform output` (아래 [AWS 배포](#aws-배포) 참조) |
+| `DATABASE_URL` | `.env.example`의 기본값을 그대로 사용 |
+
+**VAPID 키를 재발급하면 기존 구독이 전부 무효화됩니다.**
+
 ```bash
 cd server
 cp .env.example .env
@@ -96,8 +107,6 @@ npm run dev
 ```bash
 npm run worker
 ```
-
-VAPID 키는 `npx web-push generate-vapid-keys`로 생성합니다. **키를 재발급하면 기존 구독이 전부 무효화됩니다.**
 
 AWS(SNS/SQS)를 사용하는 코드를 실행하려면 SSO 로그인이 필요합니다.
 
@@ -121,13 +130,15 @@ terraform init -backend-config=backend.hcl
 terraform apply
 ```
 
-VAPID 키 3개를 SSM 파라미터 스토어에 등록합니다(`/qring/vapid-public-key`, `/qring/vapid-private-key`는 SecureString, `/qring/vapid-subject`).
+**주의:** `apply`는 ASG까지 만들기 때문에, S3에 아티팩트가 없는 상태에서 EC2가 먼저 부팅하기 때문에 헬스체크에 실패합니다.
+
+VAPID 키 3개를 SSM 파라미터 스토어에 등록합니다(`/qring/vapid-public-key`, `/qring/vapid-private-key`는 SecureString, `/qring/vapid-subject`). 부팅 스크립트가 이 값을 읽어 `.env`를 만듭니다.
 
 ```bash
 infra/scripts/deploy.sh
 ```
 
-`deploy.sh`로 S3에 빌드한 zip파일을 업로드합니다.
+`deploy.sh`가 `server/`를 빌드해 zip으로 묶어 S3에 올립니다. 다음 인스턴스 교체부터 이 아티팩트로 기동합니다.
 
 ## API
 
